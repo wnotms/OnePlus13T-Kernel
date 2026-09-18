@@ -1,0 +1,112 @@
+name: Build OnePlus 13T Kernel 6.6.89
+
+on:
+  workflow_dispatch:
+    inputs:
+      pure_kernel:
+        description: "Pure kernel: disable all third-party features"
+        required: true
+        default: true
+        type: boolean
+      root_solution:
+        description: "Root solution"
+        required: true
+        default: none
+        type: choice
+        options: [none, kernelsu_next, resukisu]
+      enable_susfs:
+        description: "SUSFS (ReSukiSU only)"
+        required: true
+        default: false
+        type: boolean
+      enable_droidspaces:
+        description: "Droidspaces container support"
+        required: true
+        default: false
+        type: boolean
+      enable_ntsync:
+        description: "NTSync support"
+        required: true
+        default: false
+        type: boolean
+      enable_scx:
+        description: "OnePlus 13T HMBIRD/SCX"
+        required: true
+        default: false
+        type: boolean
+      enable_bbg:
+        description: "Baseband Guard"
+        required: true
+        default: false
+        type: boolean
+      enable_adios:
+        description: "ADIOS I/O scheduler"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PURE_KERNEL: ${{ inputs.pure_kernel }}
+      ROOT_SOLUTION: ${{ inputs.pure_kernel && 'none' || inputs.root_solution }}
+      ENABLE_SUSFS: ${{ inputs.pure_kernel && 'false' || inputs.enable_susfs }}
+      ENABLE_DROIDSPACES: ${{ inputs.pure_kernel && 'false' || inputs.enable_droidspaces }}
+      ENABLE_NTSYNC: ${{ inputs.pure_kernel && 'false' || inputs.enable_ntsync }}
+      ENABLE_SCX: ${{ inputs.pure_kernel && 'false' || inputs.enable_scx }}
+      ENABLE_BBG: ${{ inputs.pure_kernel && 'false' || inputs.enable_bbg }}
+      ENABLE_ADIOS: ${{ inputs.pure_kernel && 'false' || inputs.enable_adios }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate scripts
+        run: bash -n scripts/*.sh
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          df -h
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison flex build-essential binutils libssl-dev libelf-dev dwarves \
+            git curl unzip zip ccache rsync file python3 python-is-python3 \
+            lz4 zstd
+
+      - name: Restore ccache
+        uses: actions/cache@v5
+        with:
+          path: ~/.ccache_oneplus13t
+          key: oneplus13t-6.6.89-${{ github.run_id }}
+          restore-keys: oneplus13t-6.6.89-
+
+      - name: Fetch fixed 6.6.89 source
+        run: bash scripts/setup_source.sh
+
+      - name: Apply selected features
+        run: bash scripts/apply_features.sh
+
+      - name: Build kernel
+        run: bash scripts/build_kernel.sh
+
+      - name: Package
+        run: bash scripts/package.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: OnePlus13T-6.6.89-${{ inputs.pure_kernel && 'pure' || 'custom' }}
+          path: |
+            work/artifacts/
+            work/build.log
+          retention-days: 30
+          if-no-files-found: error
