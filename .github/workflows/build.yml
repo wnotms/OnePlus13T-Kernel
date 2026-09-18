@@ -1,46 +1,46 @@
-name: Build OnePlus 13T Kernel 6.6.89
+name: 编译一加 13T 内核 6.6.89
 
 on:
   workflow_dispatch:
     inputs:
       pure_kernel:
-        description: "Pure kernel: disable all third-party features"
+        description: "纯净内核（开启后强制关闭所有第三方功能）"
         required: true
         default: true
         type: boolean
       root_solution:
-        description: "Root solution"
+        description: "Root 方案"
         required: true
         default: none
         type: choice
         options: [none, kernelsu_next, resukisu]
       enable_susfs:
-        description: "SUSFS (ReSukiSU only)"
+        description: "启用 SUSFS（仅支持 ReSukiSU）"
         required: true
         default: false
         type: boolean
       enable_droidspaces:
-        description: "Droidspaces container support"
+        description: "启用 Droidspaces 容器支持"
         required: true
         default: false
         type: boolean
       enable_ntsync:
-        description: "NTSync support"
+        description: "启用 NTSync 同步支持"
         required: true
         default: false
         type: boolean
       enable_scx:
-        description: "OnePlus 13T HMBIRD/SCX"
+        description: "启用一加 13T HMBIRD / SCX 调度器"
         required: true
         default: false
         type: boolean
       enable_bbg:
-        description: "Baseband Guard"
+        description: "启用 BBG（Baseband Guard）"
         required: true
         default: false
         type: boolean
       enable_adios:
-        description: "ADIOS I/O scheduler"
+        description: "启用 ADIOS I/O 调度器"
         required: true
         default: false
         type: boolean
@@ -66,15 +66,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Validate scripts
+      - name: 检查构建脚本
         run: bash -n scripts/*.sh
 
-      - name: Free disk space
+      - name: 释放磁盘空间
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL || true
           df -h
 
-      - name: Install dependencies
+      - name: 安装编译依赖
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -82,26 +82,26 @@ jobs:
             git curl unzip zip ccache rsync file python3 python-is-python3 \
             lz4 zstd
 
-      - name: Restore ccache
+      - name: 恢复 ccache 编译缓存
         uses: actions/cache@v5
         with:
           path: ~/.ccache_oneplus13t
           key: oneplus13t-6.6.89-${{ github.run_id }}
           restore-keys: oneplus13t-6.6.89-
 
-      - name: Fetch fixed 6.6.89 source
+      - name: 获取固定版本 6.6.89 内核源码
         run: bash scripts/setup_source.sh
 
-      - name: Apply selected features
+      - name: 应用所选功能
         run: bash scripts/apply_features.sh
 
-      - name: Build kernel
+      - name: 编译内核
         run: bash scripts/build_kernel.sh
 
-      - name: Package
+      - name: 打包 AnyKernel3
         run: bash scripts/package.sh
 
-      - name: Upload artifacts
+      - name: 上传编译产物
         uses: actions/upload-artifact@v7
         with:
           name: OnePlus13T-6.6.89-${{ inputs.pure_kernel && 'pure' || 'custom' }}
