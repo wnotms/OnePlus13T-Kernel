@@ -1,0 +1,5 @@
+work/
+out/
+*.zip
+*.log
+.DS_Store
