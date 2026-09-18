@@ -30,7 +30,7 @@ on:
         default: false
         type: boolean
       enable_scx:
-        description: "启用一加 13T HMBIRD / SCX 调度器"
+        description: "启用风驰调度（HMBIRD / sched_ext）"
         required: true
         default: false
         type: boolean
