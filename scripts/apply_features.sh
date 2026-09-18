@@ -45,28 +45,13 @@ if [[ "$ENABLE_NTSYNC" == "true" ]]; then
 fi
 
 if [[ "$ENABLE_SCX" == "true" ]]; then
- echo "==> 检查一加 13T 风驰/HMBIRD 调度补丁兼容性"
- git clone --depth=1 --branch "$SCHED_REF" "$SCHED_REPO" "$WORK_DIR/SCHED_PATCH"
- ok=false
- for p in fengchi_oneplus_13t.patch fengchi_oneplus_13t_b.patch; do
-  patch_file="$WORK_DIR/SCHED_PATCH/$p"
-  [[ -f "$patch_file" ]] || continue
-  sed -i 's/\r$//' "$patch_file"
-  echo "严格检查风驰补丁: $p"
-  if patch --batch --forward -d "$COMMON_DIR" -p1 --dry-run < "$patch_file" >/dev/null 2>&1; then
-   patch --batch --forward -d "$COMMON_DIR" -p1 < "$patch_file"
-   notice "$p applied"
-   ok=true
-   break
-  fi
- done
- if [[ "$ok" != true ]]; then
-  echo "::warning::当前 Numbersf 一加13T风驰补丁与固定的 Linux 6.6.89 源码不兼容，本次自动跳过风驰调度。"
-  echo "::warning::不会使用 fuzz、部分 hunk 或 --force 强行修改调度器源码；Droidspaces/NTSYNC 等其它已选功能继续构建。"
-  echo "FENGCHI_STATUS=skipped_incompatible_6.6.89" >> "$GITHUB_ENV"
- else
-  echo "FENGCHI_STATUS=enabled" >> "$GITHUB_ENV"
- fi
+ echo "==> 验证 cctv18 6.6.89 风驰/HMBIRD 源码"
+ [[ -f "$COMMON_DIR/kernel/sched/hmbird/hmbird.c" ]] || die "HMBIRD implementation missing"
+ [[ -f "$COMMON_DIR/include/linux/sched/hmbird.h" ]] || die "HMBIRD public header missing"
+ grep -qx 'CONFIG_HMBIRD_SCHED=y' "$COMMON_DIR/arch/arm64/configs/gki_defconfig" || die "CONFIG_HMBIRD_SCHED is not enabled in gki_defconfig"
+ add_config "CONFIG_HMBIRD_SCHED=y"
+ echo "FENGCHI_STATUS=enabled_cctv18_6.6.89" >> "$GITHUB_ENV"
+ notice "使用 cctv18 SM8750 6.6.89 已移植风驰源码；不再应用不兼容的 Numbersf 整体补丁"
 fi
 
 if [[ "$ENABLE_BBG" == "true" ]]; then
