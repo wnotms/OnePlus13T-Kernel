@@ -45,25 +45,28 @@ if [[ "$ENABLE_NTSYNC" == "true" ]]; then
 fi
 
 if [[ "$ENABLE_SCX" == "true" ]]; then
- echo "==> 应用一加 13T 风驰/HMBIRD 调度补丁"
+ echo "==> 检查一加 13T 风驰/HMBIRD 调度补丁兼容性"
  git clone --depth=1 --branch "$SCHED_REF" "$SCHED_REPO" "$WORK_DIR/SCHED_PATCH"
  ok=false
- # Numbersf 的 SM8750 风驰补丁是针对相近的 OnePlus 6.6 源码生成的；
- # 6.6.89 的上下文存在小幅变化，因此与社区构建脚本一致允许最多 3 级 fuzz。
- # 仍先执行 dry-run，只有整个补丁可以完整应用时才真正修改源码。
  for p in fengchi_oneplus_13t.patch fengchi_oneplus_13t_b.patch; do
   patch_file="$WORK_DIR/SCHED_PATCH/$p"
   [[ -f "$patch_file" ]] || continue
   sed -i 's/\r$//' "$patch_file"
-  echo "尝试风驰补丁: $p"
-  if patch -d "$COMMON_DIR" -p1 -F3 --dry-run < "$patch_file"; then
-   patch -d "$COMMON_DIR" -p1 -F3 < "$patch_file"
-   notice "$p applied with fuzz <= 3"
+  echo "严格检查风驰补丁: $p"
+  if patch --batch --forward -d "$COMMON_DIR" -p1 --dry-run < "$patch_file" >/dev/null 2>&1; then
+   patch --batch --forward -d "$COMMON_DIR" -p1 < "$patch_file"
+   notice "$p applied"
    ok=true
    break
   fi
  done
- [[ "$ok" == true ]] || die "一加 13T 风驰补丁仍无法完整应用到 6.6.89；请查看上方具体 hunk 失败位置"
+ if [[ "$ok" != true ]]; then
+  echo "::warning::当前 Numbersf 一加13T风驰补丁与固定的 Linux 6.6.89 源码不兼容，本次自动跳过风驰调度。"
+  echo "::warning::不会使用 fuzz、部分 hunk 或 --force 强行修改调度器源码；Droidspaces/NTSYNC 等其它已选功能继续构建。"
+  echo "FENGCHI_STATUS=skipped_incompatible_6.6.89" >> "$GITHUB_ENV"
+ else
+  echo "FENGCHI_STATUS=enabled" >> "$GITHUB_ENV"
+ fi
 fi
 
 if [[ "$ENABLE_BBG" == "true" ]]; then
