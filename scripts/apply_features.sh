@@ -81,8 +81,21 @@ if [[ "$ENABLE_LZ4_ZSTD" == "true" ]]; then
  download_patch "$OPT_PATCH_BASE/zram_patch/002-zstd.patch" "$WORK_DIR/patches/002-zstd.patch"
  curl -fL --retry 5 "$OPT_PATCH_BASE/zram_patch/lz4armv8.S" -o "$WORK_DIR/patches/lz4armv8.S"
  cp -f "$WORK_DIR/patches/lz4armv8.S" "$COMMON_DIR/lib/lz4armv8.S"
- apply_patch_file "$WORK_DIR/patches/001-lz4.patch" "LZ4 1.10" || die "LZ4 1.10 patch failed"
- apply_patch_file "$WORK_DIR/patches/002-zstd.patch" "ZSTD 1.5.7" || die "ZSTD 1.5.7 patch failed"
+ # 与补丁来源项目保持相同的应用方式：
+ # 001-lz4.patch 使用 git apply；002-zstd.patch 允许最多 3 级上下文 fuzz。
+ # 之前统一走 patch --dry-run 的严格模式会导致 LZ4 补丁在同一 6.6.89 基线上误判失败。
+ if git -C "$COMMON_DIR" apply --check -p1 "$WORK_DIR/patches/001-lz4.patch"; then
+  git -C "$COMMON_DIR" apply -p1 "$WORK_DIR/patches/001-lz4.patch"
+  notice "LZ4 1.10 patch applied"
+ else
+  die "LZ4 1.10 patch failed (git apply --check)"
+ fi
+ if patch --batch --forward -d "$COMMON_DIR" -p1 -F3 --dry-run < "$WORK_DIR/patches/002-zstd.patch"; then
+  patch --batch --forward -d "$COMMON_DIR" -p1 -F3 < "$WORK_DIR/patches/002-zstd.patch"
+  notice "ZSTD 1.5.7 patch applied"
+ else
+  die "ZSTD 1.5.7 patch failed"
+ fi
 fi
 
 if [[ "$ENABLE_BBR" == "true" ]]; then
