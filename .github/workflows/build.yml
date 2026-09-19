@@ -1,4 +1,4 @@
-name: 编译一加 13T 内核 6.6.89
+name: Kernel Build
 
 on:
   workflow_dispatch:
@@ -49,8 +49,13 @@ on:
         required: true
         default: false
         type: boolean
-      enable_lz4_zstd:
-        description: "启用 LZ4 1.10 + ZSTD 1.5.7 优化补丁"
+      enable_lz4:
+        description: "启用 LZ4 1.10 + ARM64 优化"
+        required: true
+        default: false
+        type: boolean
+      enable_zstd:
+        description: "启用 ZSTD 1.5.7 优化（实验性，不兼容时安全跳过）"
         required: true
         default: false
         type: boolean
@@ -88,7 +93,8 @@ jobs:
       ENABLE_BBG: ${{ inputs.pure_kernel && 'false' || inputs.enable_bbg }}
       ENABLE_ADIOS: ${{ inputs.pure_kernel && 'false' || inputs.enable_adios }}
       ENABLE_O2: ${{ inputs.pure_kernel && 'false' || inputs.enable_o2 }}
-      ENABLE_LZ4_ZSTD: ${{ inputs.pure_kernel && 'false' || inputs.enable_lz4_zstd }}
+      ENABLE_LZ4: ${{ inputs.pure_kernel && 'false' || inputs.enable_lz4 }}
+      ENABLE_ZSTD: ${{ inputs.pure_kernel && 'false' || inputs.enable_zstd }}
       ENABLE_BBR: ${{ inputs.pure_kernel && 'false' || inputs.enable_bbr }}
       ENABLE_BETTER_NET: ${{ inputs.pure_kernel && 'false' || inputs.enable_better_net }}
       ENABLE_REKERNEL: ${{ inputs.pure_kernel && 'false' || inputs.enable_rekernel }}
