@@ -9,6 +9,11 @@ ENABLE_NTSYNC="${ENABLE_NTSYNC:-false}"
 ENABLE_SCX="${ENABLE_SCX:-false}"
 ENABLE_BBG="${ENABLE_BBG:-false}"
 ENABLE_ADIOS="${ENABLE_ADIOS:-false}"
+ENABLE_O2="${ENABLE_O2:-false}"
+ENABLE_LZ4_ZSTD="${ENABLE_LZ4_ZSTD:-false}"
+ENABLE_BBR="${ENABLE_BBR:-false}"
+ENABLE_BETTER_NET="${ENABLE_BETTER_NET:-false}"
+ENABLE_REKERNEL="${ENABLE_REKERNEL:-false}"
 : > "$FEATURE_CONFIG"; mkdir -p "$WORK_DIR/patches"
 
 remote_patch(){ local url="$1" name="$2" dst="$WORK_DIR/patches/$2"; download_patch "$url" "$dst"; apply_patch_file "$dst" "$name" || die "Cannot apply requested patch: $name"; }
@@ -60,6 +65,38 @@ fi
 if [[ "$ENABLE_ADIOS" == "true" ]]; then
  remote_patch "$ADIOS_PATCH_URL" "adios_ioscheduler_6.6.patch"
  add_config "CONFIG_MQ_IOSCHED_ADIOS=y"; add_config "CONFIG_MQ_IOSCHED_DEFAULT_ADIOS=y"
+fi
+
+
+# ===== 可选性能/功能优化 =====
+# 与当前 6.6.89 SM8750 社区构建保持同源；所有选项默认关闭。
+if [[ "$ENABLE_O2" == "true" ]]; then
+ add_config "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y"
+ echo "ENABLE_O2_KCFLAGS=true" >> "$GITHUB_ENV"
+fi
+
+if [[ "$ENABLE_LZ4_ZSTD" == "true" ]]; then
+ echo "==> 应用 LZ4 1.10 + ZSTD 1.5.7 优化"
+ download_patch "$OPT_PATCH_BASE/zram_patch/001-lz4.patch" "$WORK_DIR/patches/001-lz4.patch"
+ download_patch "$OPT_PATCH_BASE/zram_patch/002-zstd.patch" "$WORK_DIR/patches/002-zstd.patch"
+ curl -fL --retry 5 "$OPT_PATCH_BASE/zram_patch/lz4armv8.S" -o "$WORK_DIR/patches/lz4armv8.S"
+ cp -f "$WORK_DIR/patches/lz4armv8.S" "$COMMON_DIR/lib/lz4armv8.S"
+ apply_patch_file "$WORK_DIR/patches/001-lz4.patch" "LZ4 1.10" || die "LZ4 1.10 patch failed"
+ apply_patch_file "$WORK_DIR/patches/002-zstd.patch" "ZSTD 1.5.7" || die "ZSTD 1.5.7 patch failed"
+fi
+
+if [[ "$ENABLE_BBR" == "true" ]]; then
+ for cfg in CONFIG_TCP_CONG_ADVANCED=y CONFIG_TCP_CONG_BBR=y CONFIG_TCP_CONG_CUBIC=y; do add_config "$cfg"; done
+fi
+
+if [[ "$ENABLE_BETTER_NET" == "true" ]]; then
+ for cfg in CONFIG_BPF_STREAM_PARSER=y CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y CONFIG_NETFILTER_XT_SET=y CONFIG_IP_SET=y CONFIG_IP_SET_MAX=65534 CONFIG_IP_SET_BITMAP_IP=y CONFIG_IP_SET_BITMAP_IPMAC=y CONFIG_IP_SET_BITMAP_PORT=y CONFIG_IP_SET_HASH_IP=y CONFIG_IP_SET_HASH_IPMARK=y CONFIG_IP_SET_HASH_IPPORT=y CONFIG_IP_SET_HASH_IPPORTIP=y CONFIG_IP_SET_HASH_IPPORTNET=y CONFIG_IP_SET_HASH_IPMAC=y CONFIG_IP_SET_HASH_MAC=y CONFIG_IP_SET_HASH_NETPORTNET=y CONFIG_IP_SET_HASH_NET=y CONFIG_IP_SET_HASH_NETNET=y CONFIG_IP_SET_HASH_NETPORT=y CONFIG_IP_SET_HASH_NETIFACE=y CONFIG_IP_SET_LIST_SET=y; do add_config "$cfg"; done
+fi
+
+if [[ "$ENABLE_REKERNEL" == "true" ]]; then
+ # 当前 cctv18 6.6.89 风驰源码已携带 Re:Kernel 实现时只需打开配置；
+ # 若源码没有对应 Kconfig，olddefconfig 后的严格校验会失败，避免生成“假开启”内核。
+ add_config "CONFIG_REKERNEL=y"
 fi
 
 if [[ "${PURE_KERNEL:-false}" == "true" ]]; then
