@@ -90,11 +90,18 @@ if [[ "$ENABLE_LZ4_ZSTD" == "true" ]]; then
  else
   die "LZ4 1.10 patch failed (git apply --check)"
  fi
- if patch --batch --forward -d "$COMMON_DIR" -p1 -F3 --dry-run < "$WORK_DIR/patches/002-zstd.patch"; then
-  patch --batch --forward -d "$COMMON_DIR" -p1 -F3 < "$WORK_DIR/patches/002-zstd.patch"
+ # 参考项目对 ZSTD 使用 patch -F3 并允许部分 hunk 不适用。
+ # 这里不再因 ZSTD 可选更新失败阻断整个内核；LZ4 仍保持严格成功要求。
+ set +e
+ patch --batch --forward -d "$COMMON_DIR" -p1 -F3 < "$WORK_DIR/patches/002-zstd.patch"
+ zstd_rc=$?
+ set -e
+ if [[ $zstd_rc -eq 0 ]]; then
   notice "ZSTD 1.5.7 patch applied"
+  echo "ZSTD_PATCH_STATUS=applied" >> "$GITHUB_ENV"
  else
-  die "ZSTD 1.5.7 patch failed"
+  echo "::warning::ZSTD 1.5.7 补丁与当前 HMBIRD 6.6.89 源码并非完全兼容；已保留可成功应用的部分并继续构建。"
+  echo "ZSTD_PATCH_STATUS=partial_or_skipped" >> "$GITHUB_ENV"
  fi
 fi
 
