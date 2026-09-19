@@ -44,6 +44,31 @@ on:
         required: true
         default: false
         type: boolean
+      enable_o2:
+        description: "启用 Clang O2 性能优化"
+        required: true
+        default: false
+        type: boolean
+      enable_lz4_zstd:
+        description: "启用 LZ4 1.10 + ZSTD 1.5.7 优化补丁"
+        required: true
+        default: false
+        type: boolean
+      enable_bbr:
+        description: "启用 BBR TCP 拥塞控制（不设为默认）"
+        required: true
+        default: false
+        type: boolean
+      enable_better_net:
+        description: "启用高级网络功能（IPSet / Netfilter）"
+        required: true
+        default: false
+        type: boolean
+      enable_rekernel:
+        description: "启用 Re:Kernel（Freezer / NoActive 支持）"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -62,6 +87,11 @@ jobs:
       ENABLE_SCX: ${{ inputs.pure_kernel && 'false' || inputs.enable_scx }}
       ENABLE_BBG: ${{ inputs.pure_kernel && 'false' || inputs.enable_bbg }}
       ENABLE_ADIOS: ${{ inputs.pure_kernel && 'false' || inputs.enable_adios }}
+      ENABLE_O2: ${{ inputs.pure_kernel && 'false' || inputs.enable_o2 }}
+      ENABLE_LZ4_ZSTD: ${{ inputs.pure_kernel && 'false' || inputs.enable_lz4_zstd }}
+      ENABLE_BBR: ${{ inputs.pure_kernel && 'false' || inputs.enable_bbr }}
+      ENABLE_BETTER_NET: ${{ inputs.pure_kernel && 'false' || inputs.enable_better_net }}
+      ENABLE_REKERNEL: ${{ inputs.pure_kernel && 'false' || inputs.enable_rekernel }}
 
     steps:
       - uses: actions/checkout@v6
