@@ -90,18 +90,16 @@ if [[ "$ENABLE_LZ4_ZSTD" == "true" ]]; then
  else
   die "LZ4 1.10 patch failed (git apply --check)"
  fi
- # 参考项目对 ZSTD 使用 patch -F3 并允许部分 hunk 不适用。
- # 这里不再因 ZSTD 可选更新失败阻断整个内核；LZ4 仍保持严格成功要求。
- set +e
- patch --batch --forward -d "$COMMON_DIR" -p1 -F3 < "$WORK_DIR/patches/002-zstd.patch"
- zstd_rc=$?
- set -e
- if [[ $zstd_rc -eq 0 ]]; then
-  notice "ZSTD 1.5.7 patch applied"
+ # ZSTD 必须原子应用：先 dry-run，只有所有 hunk 都能应用时才真正修改源码。
+ # 禁止“部分应用后继续编译”，避免得到内容混杂的 ZSTD 实现。
+ if patch --batch --forward -d "$COMMON_DIR" -p1 -F3 --dry-run < "$WORK_DIR/patches/002-zstd.patch" >/tmp/zstd-dryrun.log 2>&1; then
+  patch --batch --forward -d "$COMMON_DIR" -p1 -F3 < "$WORK_DIR/patches/002-zstd.patch"
+  notice "ZSTD 1.5.7 patch fully applied"
   echo "ZSTD_PATCH_STATUS=applied" >> "$GITHUB_ENV"
  else
-  echo "::warning::ZSTD 1.5.7 补丁与当前 HMBIRD 6.6.89 源码并非完全兼容；已保留可成功应用的部分并继续构建。"
-  echo "ZSTD_PATCH_STATUS=partial_or_skipped" >> "$GITHUB_ENV"
+  echo "::warning::ZSTD 1.5.7 补丁与当前 HMBIRD 6.6.89 源码不完全兼容，本次不应用 ZSTD 更新；LZ4 1.10 优化仍保留。"
+  sed -n '1,160p' /tmp/zstd-dryrun.log || true
+  echo "ZSTD_PATCH_STATUS=skipped_incompatible" >> "$GITHUB_ENV"
  fi
 fi
 
