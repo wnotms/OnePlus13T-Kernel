@@ -10,7 +10,8 @@ ENABLE_SCX="${ENABLE_SCX:-false}"
 ENABLE_BBG="${ENABLE_BBG:-false}"
 ENABLE_ADIOS="${ENABLE_ADIOS:-false}"
 ENABLE_O2="${ENABLE_O2:-false}"
-ENABLE_LZ4_ZSTD="${ENABLE_LZ4_ZSTD:-false}"
+ENABLE_LZ4="${ENABLE_LZ4:-false}"
+ENABLE_ZSTD="${ENABLE_ZSTD:-false}"
 ENABLE_BBR="${ENABLE_BBR:-false}"
 ENABLE_BETTER_NET="${ENABLE_BETTER_NET:-false}"
 ENABLE_REKERNEL="${ENABLE_REKERNEL:-false}"
@@ -75,30 +76,44 @@ if [[ "$ENABLE_O2" == "true" ]]; then
  echo "ENABLE_O2_KCFLAGS=true" >> "$GITHUB_ENV"
 fi
 
-if [[ "$ENABLE_LZ4_ZSTD" == "true" ]]; then
- echo "==> 应用 LZ4 1.10 + ZSTD 1.5.7 优化"
+if [[ "$ENABLE_LZ4" == "true" ]]; then
+ echo "==> 应用 LZ4 1.10 + ARM64 优化"
  download_patch "$OPT_PATCH_BASE/zram_patch/001-lz4.patch" "$WORK_DIR/patches/001-lz4.patch"
- download_patch "$OPT_PATCH_BASE/zram_patch/002-zstd.patch" "$WORK_DIR/patches/002-zstd.patch"
  curl -fL --retry 5 "$OPT_PATCH_BASE/zram_patch/lz4armv8.S" -o "$WORK_DIR/patches/lz4armv8.S"
- cp -f "$WORK_DIR/patches/lz4armv8.S" "$COMMON_DIR/lib/lz4armv8.S"
- # 与补丁来源项目保持相同的应用方式：
- # 001-lz4.patch 使用 git apply；002-zstd.patch 允许最多 3 级上下文 fuzz。
- # 之前统一走 patch --dry-run 的严格模式会导致 LZ4 补丁在同一 6.6.89 基线上误判失败。
  if git -C "$COMMON_DIR" apply --check -p1 "$WORK_DIR/patches/001-lz4.patch"; then
+  cp -f "$WORK_DIR/patches/lz4armv8.S" "$COMMON_DIR/lib/lz4armv8.S"
   git -C "$COMMON_DIR" apply -p1 "$WORK_DIR/patches/001-lz4.patch"
   notice "LZ4 1.10 patch applied"
+  echo "LZ4_PATCH_STATUS=applied" >> "$GITHUB_ENV"
  else
   die "LZ4 1.10 patch failed (git apply --check)"
  fi
- # ZSTD 必须原子应用：先 dry-run，只有所有 hunk 都能应用时才真正修改源码。
- # 禁止“部分应用后继续编译”，避免得到内容混杂的 ZSTD 实现。
- if patch --batch --forward -d "$COMMON_DIR" -p1 -F3 --dry-run < "$WORK_DIR/patches/002-zstd.patch" >/tmp/zstd-dryrun.log 2>&1; then
-  patch --batch --forward -d "$COMMON_DIR" -p1 -F3 < "$WORK_DIR/patches/002-zstd.patch"
-  notice "ZSTD 1.5.7 patch fully applied"
-  echo "ZSTD_PATCH_STATUS=applied" >> "$GITHUB_ENV"
+fi
+
+if [[ "$ENABLE_ZSTD" == "true" ]]; then
+ echo "==> 尝试应用 ZSTD 1.5.7 优化"
+ download_patch "$OPT_PATCH_BASE/zram_patch/002-zstd.patch" "$WORK_DIR/patches/002-zstd.patch"
+ # 优先严格应用；若仅因少量上下文变化失败，再尝试参考项目使用的 F3。
+ # 两次都只做 dry-run，确保不会留下半套 ZSTD 源码。
+ zstd_fuzz=0
+ if patch --batch --forward -d "$COMMON_DIR" -p1 --dry-run < "$WORK_DIR/patches/002-zstd.patch" >/tmp/zstd-dryrun.log 2>&1; then
+  zstd_fuzz=0
+ elif patch --batch --forward -d "$COMMON_DIR" -p1 -F3 --dry-run < "$WORK_DIR/patches/002-zstd.patch" >/tmp/zstd-dryrun.log 2>&1; then
+  zstd_fuzz=3
  else
-  echo "::warning::ZSTD 1.5.7 补丁与当前 HMBIRD 6.6.89 源码不完全兼容，本次不应用 ZSTD 更新；LZ4 1.10 优化仍保留。"
-  sed -n '1,160p' /tmp/zstd-dryrun.log || true
+  zstd_fuzz=-1
+ fi
+ if [[ "$zstd_fuzz" == "0" ]]; then
+  patch --batch --forward -d "$COMMON_DIR" -p1 < "$WORK_DIR/patches/002-zstd.patch"
+  notice "ZSTD 1.5.7 patch fully applied (strict)"
+  echo "ZSTD_PATCH_STATUS=applied_strict" >> "$GITHUB_ENV"
+ elif [[ "$zstd_fuzz" == "3" ]]; then
+  patch --batch --forward -d "$COMMON_DIR" -p1 -F3 < "$WORK_DIR/patches/002-zstd.patch"
+  notice "ZSTD 1.5.7 patch fully applied (F3 compatibility)"
+  echo "ZSTD_PATCH_STATUS=applied_f3" >> "$GITHUB_ENV"
+ else
+  echo "::warning::ZSTD 1.5.7 与当前 HMBIRD 6.6.89 源码仍不完全兼容；为避免部分应用，本次安全跳过 ZSTD。"
+  sed -n '1,200p' /tmp/zstd-dryrun.log || true
   echo "ZSTD_PATCH_STATUS=skipped_incompatible" >> "$GITHUB_ENV"
  fi
 fi
